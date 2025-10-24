@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Mood Music Recommender - CSE 311 Project</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main>
+      <section id="intro">
+        <form id="moodForm">
+          <h1>🤖 AI-Powered Mood Music Recommender</h1>
+          <p class="subtitle">CSE 311 Artificial Intelligence Course Project</p>
+
+          <div class="input-container">
+            <input
+              id="mood"
+              type="text"
+              placeholder="How are you feeling? (happy, sad, relaxed, energetic, romantic, angry...)"
+              autocomplete="off"
+            />
+            <select name="language" id="language">
+              <option value="Any Language">Any Language</option>
+              <!-- Languages will be loaded dynamically from CSV -->
+            </select>
+          </div>
+
+          <div class="button-container">
+            <button type="button" id="music">
+              🎵 Get AI Music Recommendations
+            </button>
+            <button type="button" id="playlist">📺 Get YouTube Playlist</button>
+          </div>
+
+          <div id="embed-iframe"></div>
+        </form>
+      </section>
+
+      <section id="sample-moods">
+        <h2>💡 Try These Sample Moods</h2>
+        <div class="mood-container">
+          <p class="mood-text">I feel happy</p>
+          <p class="mood-text">I am sad</p>
+          <p class="mood-text">I feel relaxed</p>
+          <p class="mood-text">I am angry</p>
+          <p class="mood-text">I feel energetic</p>
+          <p class="mood-text">I need to chill</p>
+          <p class="mood-text">I feel romantic</p>
+          <p class="mood-text">I am motivated</p>
+          <p class="mood-text">I need to study</p>
+          <p class="mood-text">I want to party</p>
+        </div>
+      </section>
+
+      <section id="project-info">
+        <h2>ℹ️ Project Information</h2>
+        <div class="info-grid">
+          <div class="info-card">
+            <h3>✅ AI Technique</h3>
+            <p>Content-Based Filtering with Audio Feature Analysis</p>
+          </div>
+          <div class="info-card">
+            <h3>✅ Database</h3>
+            <p>90,000+ songs from CSV dataset with audio features</p>
+          </div>
+          <div class="info-card">
+            <h3>✅ Dynamic</h3>
+            <p>Different songs recommended each time</p>
+          </div>
+          <div class="info-card">
+            <h3>✅ Language Support</h3>
+            <p>Automatically detects language from song metadata</p>
+          </div>
+          <div class="info-card">
+            <h3>🎵 Spotify</h3>
+            <p>Embedded player with song recommendations</p>
+          </div>
+          <div class="info-card">
+            <h3>📺 YouTube</h3>
+            <p>Music video recommendations and search</p>
+          </div>
+          <div class="info-card">
+            <h3>🔍 Audio Analysis</h3>
+            <p>Mood detection based on valence, energy, danceability</p>
+          </div>
+          <div class="info-card">
+            <h3>🌍 Multi-Language</h3>
+            <p>Supports English, Spanish, Hindi, Korean, Japanese, and more</p>
+          </div>
+        </div>
+        <p class="credits">
+          🎓 CSE 311 Artificial Intelligence Project - Created by Lakshmi
+          Harshitha
+        </p>
+      </section>
+    </main>
+
+    <!-- Frontend JS -->
+    <script src="frontend.js"></script>
+  </body>
+</html>
