@@ -1,3 +1,5 @@
+// backend/server.js - COMPLETE CORRECTED VERSION
+
 import express from "express";
 import cors from "cors";
 import path from "path";
@@ -38,6 +40,174 @@ function generateSpotifyId() {
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 }
 
+// Enhanced language detection function for muse_v3.csv
+function detectLanguage(row) {
+  const title = (row.track || '').toLowerCase().trim();
+  const artist = (row.artist || '').toLowerCase().trim();
+  const genre = (row.genre || '').toLowerCase().trim();
+  const seeds = row.seeds ? row.seeds.toLowerCase() : '';
+
+  // 1. First, check artist names for known language patterns
+  const artistLanguageMap = {
+    'Hindi': [
+      'a.r. rahman', 'arijit singh', 'shreya ghoshal', 'sunidhi chauhan', 
+      'kishore kumar', 'lata mangeshkar', 'raftaar', 'badshah', 'diljit',
+      'neha kakkar', 'tony kakkar', 'jassie gill', 'guru randhawa', 'vishal',
+      'aastha', 'shankar', 'sonu nigam', 'kumar sanu', 'alka yagnik'
+    ],
+    'Korean': [
+      'bts', 'blackpink', 'exo', 'twice', 'red velvet', 'iu', 'bigbang',
+      'seventeen', 'nct', 'got7', 'monsta x', 'stray kids', 'itzy', 'ateez'
+    ],
+    'Japanese': [
+      'yoasobi', 'kenshi yonezu', 'hikaru utada', 'aimer', 'lisa',
+      'official hige dandism', 'vaundy', 'eve', 'ado', 'kenshi',
+      'radwimps', 'babymetal', 'one ok rock'
+    ],
+    'Spanish': [
+      'bad bunny', 'j balvin', 'shakira', 'maluma', 'ozuna', 'daddy yankee',
+      'anuel aa', 'karol g', 'rosalía', 'enrique iglesias', 'ricky martin',
+      'luis fonsi', 'j lo', 'jennifer lopez', 'marc anthony'
+    ],
+    'French': [
+      'stromae', 'indila', 'maître gims', 'zaz', 'christophe maé',
+      'jain', 'angele', 'soprano', 'black m'
+    ],
+    'German': [
+      'rammstein', 'tokio hotel', 'nena', 'helene fischer', 'mark forster'
+    ],
+    'Italian': [
+      'andrea bocelli', 'laura pausini', 'eros ramazzotti', 'tiziano ferro'
+    ]
+  };
+
+  // Check artist against known language patterns
+  for (const [lang, artists] of Object.entries(artistLanguageMap)) {
+    for (const knownArtist of artists) {
+      if (artist.includes(knownArtist)) {
+        return lang;
+      }
+    }
+  }
+
+  // 2. Check genre for language hints
+  const genreLanguageMap = {
+    'Hindi': ['bollywood', 'hindustani', 'indian pop', 'desi hip hop', 'punjabi', 'tamil', 'telugu'],
+    'Korean': ['k-pop', 'korean pop', 'k-rap', 'korean hip hop'],
+    'Japanese': ['j-pop', 'japanese pop', 'anime', 'j-rock', 'japanese rock'],
+    'Spanish': ['latin', 'reggaeton', 'salsa', 'bachata', 'flamenco', 'mexican', 'tango'],
+    'French': ['french pop', 'chanson française', 'french hip hop'],
+    'German': ['german pop', 'schlager', 'german rock'],
+    'Italian': ['italian pop', 'opera italiana', 'italian rock']
+  };
+
+  for (const [lang, genres] of Object.entries(genreLanguageMap)) {
+    for (const genrePattern of genres) {
+      if (genre.includes(genrePattern)) {
+        return lang;
+      }
+    }
+  }
+
+  // 3. Character-based language detection
+  const languagePatterns = [
+    { lang: "Korean", pattern: /[가-힣]/ },
+    { lang: "Japanese", pattern: /[一-龯]|[ぁ-ん]|[ァ-ン]/ },
+    { lang: "Hindi", pattern: /[\u0900-\u097F]/ }, // Devanagari script
+    { lang: "Arabic", pattern: /[\u0600-\u06FF]/ },
+    { lang: "Russian", pattern: /[а-яё]/i },
+    { lang: "Chinese", pattern: /[\u4e00-\u9fff]/ },
+    { lang: "Thai", pattern: /[\u0e00-\u0e7f]/ },
+    { lang: "Greek", pattern: /[α-ω]/i }
+  ];
+
+  for (const { lang, pattern } of languagePatterns) {
+    if (title.match(pattern) || artist.match(pattern)) {
+      return lang;
+    }
+  }
+
+  // 4. Check for common English indicators
+  const commonEnglishWords = [
+    'the', 'and', 'you', 'love', 'baby', 'night', 'day', 'time', 'heart',
+    'eyes', 'hands', 'world', 'life', 'dream', 'fire', 'water', 'sky',
+    'girl', 'boy', 'man', 'woman', 'city', 'street', 'home', 'house'
+  ];
+
+  let englishScore = 0;
+  commonEnglishWords.forEach(word => {
+    const wordPattern = new RegExp(`\\b${word}\\b`, 'i');
+    if (wordPattern.test(title)) {
+      englishScore++;
+    }
+  });
+
+  // 5. Final fallback logic
+  if (englishScore >= 1) {
+    return "English";
+  }
+
+  // If artist/title contains mostly ASCII characters and common English patterns
+  const isMostlyAscii = /^[a-zA-Z0-9\s\-\'\!\.\?\,\&]+$/.test(title);
+  if (isMostlyAscii && title.length > 0) {
+    return "English";
+  }
+
+  // Default to English for unknown cases
+  return "English";
+}
+
+// Function to map seeds to mood
+function mapSeedsToMood(seeds, row) {
+  // Convert seeds to lowercase for easier matching
+  const seedWords = seeds.map(seed => seed.toLowerCase());
+  
+  // Map seeds to moods
+  if (seedWords.includes('happy') || seedWords.includes('fun') || seedWords.includes('joyful') || seedWords.includes('uplifting')) {
+    return "happy";
+  }
+  if (seedWords.includes('sad') || seedWords.includes('melancholy') || seedWords.includes('emotional') || seedWords.includes('heartbreak')) {
+    return "sad";
+  }
+  if (seedWords.includes('energetic') || seedWords.includes('aggressive') || seedWords.includes('intense') || seedWords.includes('powerful')) {
+    return "energetic";
+  }
+  if (seedWords.includes('relaxed') || seedWords.includes('calm') || seedWords.includes('chill') || seedWords.includes('peaceful')) {
+    return "relaxed";
+  }
+  if (seedWords.includes('romantic') || seedWords.includes('sexy') || seedWords.includes('love') || seedWords.includes('intimate')) {
+    return "romantic";
+  }
+  if (seedWords.includes('angry') || seedWords.includes('aggressive') || seedWords.includes('rebellious')) {
+    return "angry";
+  }
+
+  // Fallback to valence-based mood detection
+  const valence = parseFloat(row.valence_tags) || 0.5;
+  const arousal = parseFloat(row.arousal_tags) || 0.5;
+  
+  if (valence > 0.7 && arousal > 0.6) return "happy";
+  if (valence < 0.4 && arousal < 0.5) return "sad";
+  if (arousal > 0.7) return "energetic";
+  if (arousal < 0.4) return "relaxed";
+  if (valence > 0.5 && valence < 0.7) return "romantic";
+  
+  return "energetic"; // Default based on common seeds
+}
+
+// Function to generate tags from seeds
+function generateTagsFromSeeds(seeds) {
+  const tags = [...seeds];
+  
+  // Add some additional tags based on common patterns
+  if (seeds.includes('aggressive')) tags.push('intense', 'powerful');
+  if (seeds.includes('fun')) tags.push('upbeat', 'joyful');
+  if (seeds.includes('energetic')) tags.push('high-energy', 'dynamic');
+  if (seeds.includes('sexy')) tags.push('sensual', 'romantic');
+  
+  return tags.slice(0, 5); // Limit to 5 tags
+}
+
 // Function to load CSV data
 function loadCSVData() {
   return new Promise((resolve, reject) => {
@@ -61,37 +231,25 @@ function loadCSVData() {
           // Parse the seeds column which contains mood information
           let seeds = [];
           try {
-            // Clean and parse the seeds column
+            // Clean and parse the seeds column - handle different formats
             const seedsStr = row.seeds || '[]';
-            seeds = JSON.parse(seedsStr.replace(/'/g, '"'));
+            // Remove brackets and split by comma, handling quotes
+            const cleanedSeeds = seedsStr.replace(/[\[\]']/g, '').split(',').map(s => s.trim()).filter(s => s);
+            seeds = cleanedSeeds;
           } catch (e) {
-            // If JSON parsing fails, try to extract from string
-            const seedsMatch = row.seeds?.match(/\[(.*?)\]/);
-            if (seedsMatch && seedsMatch[1]) {
-              seeds = seedsMatch[1].split(',').map(s => s.trim().replace(/'/g, '').replace(/"/g, ''));
-            }
+            console.warn('Error parsing seeds for row:', row.track, e.message);
           }
 
-          // Extract Spotify ID from spotify_id column or from lastfm_url
-          let spotifyId = row.spotify_id;
-          if (!spotifyId && row.lastfm_url) {
-            const spotifyMatch = row.lastfm_url.match(/tracks\/([a-zA-Z0-9]+)/);
-            if (spotifyMatch) {
-              spotifyId = spotifyMatch[1];
-            }
-          }
-
-          // Map CSV columns to your expected format
+          // Create the song object with proper language detection
           const song = {
             title: row.track || 'Unknown Title',
             artist: row.artist || 'Unknown Artist',
             mood: mapSeedsToMood(seeds, row),
             language: detectLanguage(row),
-            spotifyId: spotifyId || generateSpotifyId(),
+            spotifyId: row.spotify_id || generateSpotifyId(),
             youtubeUrl: generateYouTubeSearchUrl(row.track, row.artist),
-            tags: generateTagsFromSeeds(seeds),
+            tags: seeds.slice(0, 5),
             genre: row.genre || 'Unknown',
-            // Include audio features from the CSV
             features: {
               valence: parseFloat(row.valence_tags) || 0.5,
               energy: parseFloat(row.arousal_tags) || 0.5,
@@ -99,7 +257,9 @@ function loadCSVData() {
               acousticness: 0.5,
               tempo: 120,
               loudness: -6
-            }
+            },
+            // Keep original seeds for debugging
+            originalSeeds: seeds
           };
           
           // Only add if we have basic info
@@ -120,19 +280,8 @@ function loadCSVData() {
         console.log(`✅ Successfully loaded ${musicDatabase.length} songs from CSV`);
         isCSVLoaded = true;
         
-        // Log language distribution for debugging
-        const languageCounts = {};
-        musicDatabase.forEach(song => {
-          languageCounts[song.language] = (languageCounts[song.language] || 0) + 1;
-        });
-        console.log('🌍 Language distribution:', languageCounts);
-        
-        // Log mood distribution
-        const moodCounts = {};
-        musicDatabase.forEach(song => {
-          moodCounts[song.mood] = (moodCounts[song.mood] || 0) + 1;
-        });
-        console.log('🎭 Mood distribution:', moodCounts);
+        // Analyze language distribution
+        analyzeLanguageDistribution();
         
         resolve();
       })
@@ -143,105 +292,49 @@ function loadCSVData() {
   });
 }
 
-// Function to map seeds to mood
-function mapSeedsToMood(seeds, row) {
-  // Convert seeds to lowercase for easier matching
-  const seedWords = seeds.map(seed => seed.toLowerCase());
+// Add this debug function
+function analyzeLanguageDistribution() {
+  console.log('\n🔍 ANALYZING LANGUAGE DISTRIBUTION');
+  console.log('================================');
   
-  // Map seeds to moods
-  if (seedWords.includes('happy') || seedWords.includes('fun') || seedWords.includes('joyful')) {
-    return "happy";
-  }
-  if (seedWords.includes('sad') || seedWords.includes('melancholy') || seedWords.includes('emotional')) {
-    return "sad";
-  }
-  if (seedWords.includes('energetic') || seedWords.includes('aggressive') || seedWords.includes('intense')) {
-    return "energetic";
-  }
-  if (seedWords.includes('relaxed') || seedWords.includes('calm') || seedWords.includes('chill')) {
-    return "relaxed";
-  }
-  if (seedWords.includes('romantic') || seedWords.includes('sexy') || seedWords.includes('love')) {
-    return "romantic";
-  }
-  if (seedWords.includes('angry') || seedWords.includes('aggressive')) {
-    return "angry";
-  }
-
-  // Fallback to valence-based mood detection
-  const valence = parseFloat(row.valence_tags) || 0.5;
-  const arousal = parseFloat(row.arousal_tags) || 0.5;
+  const languageCounts = {};
+  const languageSamples = {};
   
-  if (valence > 6 && arousal > 5) return "happy";
-  if (valence < 4 && arousal < 5) return "sad";
-  if (arousal > 5.5) return "energetic";
-  if (arousal < 4.5) return "relaxed";
-  if (valence > 5 && valence < 6) return "romantic";
-  
-  return "energetic"; // Default based on common seeds
-}
-
-// Function to generate tags from seeds
-function generateTagsFromSeeds(seeds) {
-  const tags = [...seeds];
-  
-  // Add some additional tags based on common patterns
-  if (seeds.includes('aggressive')) tags.push('intense', 'powerful');
-  if (seeds.includes('fun')) tags.push('upbeat', 'joyful');
-  if (seeds.includes('energetic')) tags.push('high-energy', 'dynamic');
-  if (seeds.includes('sexy')) tags.push('sensual', 'romantic');
-  
-  return tags.slice(0, 5); // Limit to 5 tags
-}
-
-// Enhanced language detection function
-function detectLanguage(row) {
-  const title = (row.track || '').toLowerCase();
-  const artist = (row.artist || '').toLowerCase();
-  const genre = (row.genre || '').toLowerCase();
-
-  // Check for Indian languages and artists
-  if (artist.includes('aastha') || artist.includes('raftaar') || artist.includes('vishal') || 
-      title.match(/(saara|india|khuda|haafiz|sainika)/i)) {
-    return "Hindi";
-  }
-
-  // Check for specific language patterns
-  const languagePatterns = [
-    { lang: "Korean", pattern: /[가-힣]/ },
-    { lang: "Japanese", pattern: /[一-龯]|[ぁ-ん]|[ァ-ン]/ },
-    { lang: "Russian", pattern: /[а-я]/i },
-    { lang: "Arabic", pattern: /[أ-ي]/ },
-    { lang: "Hindi", pattern: /[ह-ॿ]/ },
-    { lang: "Chinese", pattern: /[一-龯]|[⺀-⺙]|[⺛-⻳]/ },
-    { lang: "Turkish", pattern: /[çğıöşü]/i },
-    { lang: "French", pattern: /[àâäçéèêëîïôöùûüÿ]/i },
-    { lang: "Spanish", pattern: /[áéíóúñ]/i },
-    { lang: "German", pattern: /[äöüß]/i },
-    { lang: "Italian", pattern: /[àèéìíîòóùú]/i },
-    { lang: "Portuguese", pattern: /[áâãàçéêíóôõú]/i }
-  ];
-
-  // Check title and artist for language patterns
-  for (const { lang, pattern } of languagePatterns) {
-    if (title.match(pattern) || artist.match(pattern)) {
-      return lang;
+  musicDatabase.forEach(song => {
+    languageCounts[song.language] = (languageCounts[song.language] || 0) + 1;
+    
+    // Collect samples for each language
+    if (!languageSamples[song.language]) {
+      languageSamples[song.language] = [];
     }
-  }
-
-  // Check genre for language hints
-  if (genre.includes('bollywood') || genre.includes('indian')) return "Hindi";
-  if (genre.includes('k-pop')) return "Korean";
-  if (genre.includes('j-pop')) return "Japanese";
-  if (genre.includes('latin')) return "Spanish";
-  if (genre.includes('reggaeton')) return "Spanish";
-
-  // Default based on common patterns in your data
-  if (artist.includes('gill') || artist.includes('dadlani') || artist.includes('raftaar')) {
-    return "Hindi";
-  }
-
-  return "English"; // Default to English
+    if (languageSamples[song.language].length < 3) {
+      languageSamples[song.language].push({
+        title: song.title,
+        artist: song.artist,
+        genre: song.genre,
+        mood: song.mood
+      });
+    }
+  });
+  
+  // Log distribution
+  console.log('\n📈 Language Distribution:');
+  Object.entries(languageCounts)
+    .sort(([,a], [,b]) => b - a)
+    .forEach(([lang, count]) => {
+      console.log(`   ${lang}: ${count} songs (${((count / musicDatabase.length) * 100).toFixed(1)}%)`);
+    });
+  
+  // Log samples
+  console.log('\n🎵 Language Samples:');
+  Object.entries(languageSamples).forEach(([lang, samples]) => {
+    console.log(`\n   ${lang}:`);
+    samples.forEach(sample => {
+      console.log(`     - "${sample.title}" by ${sample.artist} [${sample.genre}] - ${sample.mood}`);
+    });
+  });
+  
+  console.log('\n================================\n');
 }
 
 /* -------------------------
@@ -277,13 +370,14 @@ function getAIRecommendations(moodRaw, languageRaw, count = 6) {
   const mood = norm(moodRaw);
   const language = languageRaw && languageRaw !== "Any Language" ? norm(languageRaw) : "any language";
 
-  console.log(`🔍 Searching for: mood=${mood}, language=${language}`);
+  console.log(`🔍 Searching for: mood="${mood}", language="${language}"`);
   console.log(`📊 Total songs in database: ${musicDatabase.length}`);
 
-  // Primary filter: exact mood + language match
+  // STRICT Primary filter: exact mood + exact language match
   let filtered = musicDatabase.filter(song => {
     const songMood = norm(song.mood);
     const songLanguage = norm(song.language);
+    
     const moodMatch = songMood === mood;
     const languageMatch = language === "any language" || songLanguage === language;
     
@@ -292,52 +386,64 @@ function getAIRecommendations(moodRaw, languageRaw, count = 6) {
 
   console.log(`🎯 Primary filter found: ${filtered.length} songs`);
 
-  // Secondary filter: similar moods
-  if (filtered.length < count) {
-    console.log(`🔄 Not enough primary matches. Trying similar moods for: ${mood}`);
-    const similar = similarMoods[mood] || [];
+  // If no results found, show helpful message
+  if (filtered.length === 0) {
+    console.log(`❌ No songs found for mood="${mood}" and language="${language}"`);
     
-    for (let similarMood of similar) {
-      const additionalSongs = musicDatabase.filter(song => {
-        const songMood = norm(song.mood);
-        const songLanguage = norm(song.language);
-        const moodMatch = songMood === similarMood;
-        const languageMatch = language === "any language" || songLanguage === language;
-        
-        return moodMatch && languageMatch;
-      });
-      
-      // Add only new songs that aren't already in filtered
-      additionalSongs.forEach(song => {
-        if (!filtered.some(s => s.title === song.title && s.artist === song.artist)) {
-          filtered.push(song);
-        }
-      });
-      
-      if (filtered.length >= count * 2) break; // Get enough for variety
-    }
-    console.log(`🔄 After similar moods: ${filtered.length} songs`);
-  }
-
-  // Tertiary filter: any mood for the language
-  if (filtered.length < count && language !== "any language") {
-    console.log(`🌍 Trying any mood for language: ${language}`);
-    const languageSongs = musicDatabase.filter(song => 
+    // Check what's available for this language
+    const availableForLanguage = musicDatabase.filter(song => 
       norm(song.language) === language
     );
     
-    languageSongs.forEach(song => {
-      if (!filtered.some(s => s.title === song.title && s.artist === song.artist)) {
-        filtered.push(song);
+    // Check what's available for this mood
+    const availableForMood = musicDatabase.filter(song => 
+      norm(song.mood) === mood
+    );
+    
+    console.log(`💡 Available for language "${language}": ${availableForLanguage.length} songs`);
+    console.log(`💡 Available for mood "${mood}": ${availableForMood.length} songs`);
+    
+    // If no exact matches, try similar moods but ONLY for the same language
+    if (language !== "any language") {
+      console.log(`🔄 Trying similar moods for language: ${language}`);
+      const similar = similarMoods[mood] || [];
+      
+      for (let similarMood of similar) {
+        const additionalSongs = musicDatabase.filter(song => {
+          const songMood = norm(song.mood);
+          const songLanguage = norm(song.language);
+          const moodMatch = songMood === similarMood;
+          const languageMatch = songLanguage === language;
+          
+          return moodMatch && languageMatch;
+        });
+        
+        // Add only new songs that aren't already in filtered
+        additionalSongs.forEach(song => {
+          if (!filtered.some(s => s.title === song.title && s.artist === song.artist)) {
+            filtered.push(song);
+          }
+        });
+        
+        if (filtered.length >= count * 2) break;
       }
-    });
-    console.log(`🌍 After language fallback: ${filtered.length} songs`);
+      console.log(`🔄 After similar moods: ${filtered.length} songs`);
+    }
   }
 
-  // Final fallback: any song from database
+  // Final fallback: if still no results and language was specified, return empty
+  if (filtered.length === 0 && language !== "any language") {
+    console.log("🎯 No matches found for the specified language, returning empty results");
+    return [];
+  }
+
+  // Ultimate fallback: any song from database (only if language was "any language" or no language specified)
   if (filtered.length === 0) {
-    console.log("🎲 No matches found, returning random songs");
-    filtered = [...musicDatabase];
+    console.log("🎲 No matches found, returning random songs from any language");
+    filtered = musicDatabase.filter(song => norm(song.mood) === mood);
+    if (filtered.length === 0) {
+      filtered = [...musicDatabase];
+    }
   }
 
   // Randomize and limit results
@@ -345,6 +451,13 @@ function getAIRecommendations(moodRaw, languageRaw, count = 6) {
   const results = shuffled.slice(0, Math.min(count, shuffled.length));
   
   console.log(`✅ Final recommendations: ${results.length} songs`);
+  
+  // Log the actual languages of the results for debugging
+  if (results.length > 0) {
+    const resultLanguages = [...new Set(results.map(song => song.language))];
+    console.log(`🌍 Languages in results: ${resultLanguages.join(', ')}`);
+  }
+  
   return results;
 }
 
@@ -373,7 +486,7 @@ app.post("/api/mood", async (req, res) => {
       await loadCSVData();
     }
 
-    console.log(`📨 Received request: mood=${mood}, language=${language}`);
+    console.log(`📨 Received request: mood="${mood}", language="${language}"`);
     
     const recommendations = getAIRecommendations(mood, language, 6);
     const aiText = getRandomText(mood);
