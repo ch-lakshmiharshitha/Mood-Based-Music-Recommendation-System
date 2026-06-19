@@ -29,7 +29,3 @@ This project implements an AI-based music recommendation system that suggests so
 ```bash
 npm install
 ```
-=======
-# Mood-Based-Music-Recommendation-System
-AI Project 
->>>>>>> fe64220f346f55cd2227eb2236afeb1d7ad3b82b
