@@ -1,5 +1,6 @@
 <<<<<<< HEAD
-# AI-Powered Mood Music Recommender 🎵
+# Mood-Based-Music-Recommendation-System 🎵
+AI Project 
 
 ## CSE 311 Artificial Intelligence Course Project
 
